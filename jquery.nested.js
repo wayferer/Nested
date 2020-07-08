@@ -1,5 +1,5 @@
 /**
- * jQuery Nested v1.01
+ * jQuery Nested v1.03
  *
  * For a (total) gap free, multi column, grid layout experience.
  * http://suprb.com/apps/nested/
@@ -28,7 +28,7 @@
 
             timeout = setTimeout(delayed, threshold || 150);
         };
-    }
+    };
     jQuery.fn[sr] = function (fn) {
         return fn ? this.bind('resize', debounce(fn)) : this.trigger(sr);
     };
@@ -64,6 +64,7 @@ if (!Object.keys) {
         minWidth: 50,
         minColumns: 1,
         gutter: 1,
+        centered: false,
         resizeToFit: true, // will resize block bigger than the gap
         resizeToFitOptions: {
             resizeAny: true // will resize any block to fit the gap         
@@ -74,7 +75,7 @@ if (!Object.keys) {
             duration: 100,
             queue: true,
             complete: function () {}
-        },
+        }
     };
 
     $.Nested.prototype = {
@@ -82,6 +83,7 @@ if (!Object.keys) {
         _init: function (options) {
             var container = this;
             this.box = this.element;
+            $(this.box).css('position', 'relative');
             this.options = $.extend(true, {}, $.Nested.settings, options);
             this.elements = [];
             this._isResizing = false;
@@ -103,12 +105,14 @@ if (!Object.keys) {
             this.counter = 0;
             this.t = 0;
             this.maxHeight = 0;
-
-            //this.total = !$els ? this.box.find(this.options.selector) : $els;
+            this.currWidth = 0;
             this.total = this.box.find(this.options.selector);
             this.matrix = {};
             this.gridrow = new Object;
-            this.columns = Math.max(this.options.minColumns, parseInt(this.box.innerWidth() / (this.options.minWidth + this.options.gutter)) + 1);
+
+            var calcWidth = !this.options.centered ? this.box.innerWidth() : $(window).width();
+
+            this.columns = Math.max(this.options.minColumns, parseInt(calcWidth / (this.options.minWidth + this.options.gutter)) + 1);
 
             // build columns
             var minWidth = this.options.minWidth;
@@ -131,8 +135,8 @@ if (!Object.keys) {
                     'position': 'absolute',
                     'width': currWidth,
                     'height': currHeight,
-                    'top': $(this).offset().top,
-                    'left': $(this).offset().left
+                    'top': $(this).position().top,
+                    'left': $(this).position().left
                 }).removeClass('nested-moved').attr('data-box', self.idCounter).attr('data-width', currWidth);
 
                 self.idCounter++;
@@ -168,8 +172,8 @@ if (!Object.keys) {
 
         _updateMatrix: function (el) {
             var height = 0;
-            var t = parseInt(el['y']) - this.box.offset().top;
-            var l = parseInt(el['x']) - this.box.offset().left;
+            var t = parseInt(el['y']);
+            var l = parseInt(el['x']);
             for (var h = 0; h < el['height']; h += (this.options.minWidth + this.options.gutter)) {
                 for (var w = 0; w < el['width']; w += (this.options.minWidth + this.options.gutter)) {
                     var x = l + w;
@@ -216,7 +220,7 @@ if (!Object.keys) {
 
             $.each(this.matrix, function (y, row) {
                 rowsLeft--;
-                actualY = parseInt(y) + parseInt(self.box.offset().top);
+                actualY = parseInt(y); // + parseInt(self.box.offset().top);
                 $.each(row, function (x, col) {
 
                     if (col === 'false' && actualY < topY) {
@@ -246,8 +250,8 @@ if (!Object.keys) {
                                 $(el['$el']).addClass('nested-moved');
                                 self.elements.push({
                                     $el: $(el['$el']),
-                                    x: parseInt(box.x) + self.box.offset().left,
-                                    y: parseInt(box.y) + self.box.offset().top,
+                                    x: parseInt(box.x),
+                                    y: parseInt(box.y),
                                     col: i,
                                     width: parseInt(box.w),
                                     height: parseInt(box.h)
@@ -347,22 +351,22 @@ if (!Object.keys) {
             if (method == "prepend") {
                 this.elements.unshift({
                     $el: $el,
-                    x: x + this.box.offset().left,
-                    y: y + this.box.offset().top,
+                    x: x,
+                    y: y,
                     width: w,
                     height: h,
                     cols: cols,
-                    rows: rows,
+                    rows: rows
                 });
             } else {
                 this.elements.push({
                     $el: $el,
-                    x: x + this.box.offset().left,
-                    y: y + this.box.offset().top,
+                    x: x,
+                    y: y,
                     width: w,
                     height: h,
                     cols: cols,
-                    rows: rows,
+                    rows: rows
                 });
             }
         },
@@ -371,7 +375,7 @@ if (!Object.keys) {
             var self = this;
             $.each($els, function (index, value) {
                 // set maxHeight
-                var colY = (value['y'] + value['height']) - self.box.offset().top;
+                var colY = (value['y'] + value['height']);
                 if (colY > self.maxHeight) {
                     self.maxHeight = colY;
                 }
@@ -379,11 +383,26 @@ if (!Object.keys) {
             return self.maxHeight;
         },
 
+        _setWidth: function ($els) {
+            var self = this;
+            $.each($els, function (index, value) {
+                // set maxWidth
+                var colX = (value['x'] + value['width']);
+                if (colX > self.currWidth) {
+                    self.currWidth = colX;
+                }
+            });
+            return self.currWidth;
+        },
+
         _renderItems: function ($els) {
             var self = this;
 
-            // set container height
+            // set container height and width
             this.box.css('height', this._setHeight($els));
+            if (this.options.centered) {
+                this.box.css({'width' : this._setWidth($els), 'margin-left' : 'auto', 'margin-right' : 'auto'});
+            }
 
             $els.reverse();
             var speed = this.options.animationOptions.speed;
@@ -398,26 +417,26 @@ if (!Object.keys) {
 
             $.each($els, function (index, value) {
 
-                $currLeft = $(value['$el']).offset().left;
-                $currTop = $(value['$el']).offset().top;
+                $currLeft = $(value['$el']).position().left;
+                $currTop = $(value['$el']).position().top;
                 $currWidth = $(value['$el']).width();
                 $currHeight = $(value['$el']).width();
 
-
                 value['$el'].attr('data-y', $currTop).attr('data-x', $currLeft);
+                
                 //if animate and queue
                 if (animate && queue && ($currLeft != value['x'] || $currTop != value['y'])) {
                     setTimeout(function () {
                         value['$el'].css({
                             'display': 'block',
                             'width': value['width'],
-                            'height': value['height'],
+                            'height': value['height']
                         }).animate({
                             'left': value['x'],
-                            'top': value['y'],
+                            'top': value['y']
                         }, duration);
                         t++;
-                        if (t == $els.length) {
+                        if (t == i) {
                             complete.call(undefined, $els)
                         }
                     }, i * speed);
@@ -430,13 +449,13 @@ if (!Object.keys) {
                         value['$el'].css({
                             'display': 'block',
                             'width': value['width'],
-                            'height': value['height'],
+                            'height': value['height']
                         }).animate({
                             'left': value['x'],
-                            'top': value['y'],
+                            'top': value['y']
                         }, duration);
                         t++;
-                        if (t == $els.length) {
+                        if (t == i) {
                             complete.call(undefined, $els)
                         }
                     }, i);
@@ -450,14 +469,17 @@ if (!Object.keys) {
                         'width': value['width'],
                         'height': value['height'],
                         'left': value['x'],
-                        'top': value['y'],
+                        'top': value['y']
                     });
                     t++;
-                    if (t == $els.length) {
+                    if (t == i) {
                         complete.call(undefined, $els)
                     }
                 }
             });
+            if (i == 0) {
+                complete.call(undefined, $els)
+            }
         },
 
         append: function ($els) {
@@ -479,11 +501,67 @@ if (!Object.keys) {
                 this._isResizing = false;
             }
         },
+      
+        refresh: function(options) {
+        	
+        	options = options || this.options;
+        
+            this.options = $.extend(true, {}, $.Nested.settings, options);
+            this.elements = [];
+            this._isResizing = false;
 
+            // build box dimensions
+            this._setBoxes();
+        },
+        
+        destroy: function() {
+			
+			var container = this;
+
+            $(window).unbind("resize", function () {
+                container.resize();
+            });
+	        
+	        // unbind the resize event
+            $els = this.box.find(this.options.selector);
+            $($els).removeClass('nested-moved').removeAttr('style data-box data-width data-x data-y').removeData();
+            
+            this.box.removeAttr("style").removeData();
+        }
+        
     }
 
+
+	var methods =
+	{
+		refresh: function(options) {
+			return this.each(function(){
+				var $this=$(this);
+				var nested = $this.data('nested');
+				
+				nested.refresh(options);
+			});
+		},
+		
+		destroy: function() {
+			return this.each(function(){
+				var $this=$(this);
+				var nested = $this.data('nested');
+				
+				nested.destroy();
+			});
+		}
+	};
+	
+	
+
     $.fn.nested = function (options, e) {
-        if (typeof options === 'string') {
+
+		if(methods[options]) {
+			return methods[options].apply(this, Array.prototype.slice.call(arguments, 1));
+		}        
+		
+		if (typeof options === 'string') {
             this.each(function () {
                 var container = $.data(this, 'nested');
                 container[options].apply(container, [e]);
